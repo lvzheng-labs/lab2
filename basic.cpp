@@ -3,13 +3,19 @@
 #include <cstdint>
 #include <cstring>
 #include <experimental/optional>
+#include <functional>
 #include <iostream>
 #include <map>
 #include <stack>
 #include <sstream>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
+
+#ifndef NOT_LAB2_JUDGE
+#define FUCK_LAB2
+#endif
 
 namespace BASIC {
 
@@ -18,11 +24,28 @@ using std_optional = std::experimental::optional<T>;
 
 auto& std_nullopt = std::experimental::nullopt;
 
+std::unordered_set<std::string> reserved_words = {
+	"END",
+	"GOTO",
+	"IF",
+	"INPUT",
+	"LET",
+	"PRINT",
+	"REM",
+	"THEN",
+};
+
 namespace error {
 
 struct basic_error : public std::runtime_error {
 	basic_error(std::string&& s):
 		runtime_error{std::move(s)}
+	{ }
+};
+
+struct empty_command : public basic_error {
+	empty_command():
+		basic_error{"EMPTY COMMAND"}
 	{ }
 };
 
@@ -34,7 +57,13 @@ struct end_of_file : public basic_error {
 
 struct divided_by_zero : public basic_error {
 	divided_by_zero():
-		basic_error{"DIVIDED BY ZERO"}
+		basic_error{
+#ifdef FUCK_LAB2
+"DIVIDE BY ZERO"
+#else
+"DIVIDED BY ZERO"
+#endif
+}
 	{ }
 };
 
@@ -190,6 +219,8 @@ command compiler::compile(const std::string& basic)
 	ss.str(basic);
 	std::string comm_str;
 	ss >> comm_str;
+	if (!ss)
+		throw error::empty_command();
 	if (comm_str == "REM") {
 		comm.type = command::BASIC_REM;
 	} else if (comm_str == "LET") {
@@ -373,6 +404,8 @@ std_optional<std::string> compiler::consume_var()
 		varname.push_back(ch);
 		ss.get();
 	}
+	if (reserved_words.count(varname))
+		throw error::syntax_error();
 	return varname;
 }
 
@@ -501,8 +534,10 @@ struct machine {
 		integer_t STEP;
 		integer_t STOP;
 	} reg;
+	std::function<integer_t ()> input_func;
 	void run(const binary_code_t& prog);
 	void step(const instruction& ins);
+	void clear();
 };
 
 void machine::run(const binary_code_t& prog)
@@ -534,31 +569,7 @@ void machine::step(const instruction& ins)
 		stack.pop();
 		break;
 	case instruction::OP_INPUT:
-		stack.push(0);
-		while (1) {
-			std::cerr << "? ";
-			std::string s;
-			std::getline(std::cin, s);
-			if (!std::cin)
-				throw error::end_of_file();
-			std::istringstream ss(s);
-			try {
-				try {
-					ss >> stack.top();
-					if (!ss)
-						throw error::invalid_number();
-					char ch;
-					ss >> ch;
-					if (ss)
-						throw error::invalid_number();
-					break;
-				} catch (...) {
-					throw error::invalid_number();
-				}
-			} catch (error::invalid_number& e) {
-				std::cout << e.what() << std::endl;
-			}
-		}
+		stack.push(input_func());
 		break;
 	case instruction::OP_PUSH:
 		if (mode == 0x01) {
@@ -614,6 +625,14 @@ void machine::step(const instruction& ins)
 		assert(0);
 	}
 	return;
+}
+
+void machine::clear()
+{
+	var_map.clear();
+	vars.clear();
+	stack = stack_t();
+	reg.PC = reg.STEP = reg.STOP = 0;
 }
 
 class linker {
@@ -889,46 +908,164 @@ void print_program(std::ostream& os, binary_code_t& prog)
 	}
 }
 
-} // namespace BASIC
+class interactive_console {
+public:
+	interactive_console();
+	void run();
+	void special_command(const std::string& s);
+	void link();
+	void run_program(const binary_code_t& prog);
 
-void run_interactive()
+private:
+	basic_code_t _code;
+	object_code_t _obj;
+	compiler _comp;
+	machine _vm;
+	linker _ld;
+	binary_code_t _prog;
+	bool _prog_expire;
+	bool _quit;
+};
+
+interactive_console::interactive_console():
+	_ld(_vm),
+	_prog_expire(true),
+	_quit(false)
 {
-	using namespace BASIC;
+	_vm.input_func = []() -> integer_t {
+		integer_t result;
+		while (1) {
+			std::cout << " ? ";
+			std::string s;
+			std::getline(std::cin, s);
+			if (!std::cin)
+				throw error::end_of_file();
+			std::istringstream ss(s);
+			try {
+				try {
+					ss >> result;
+					if (!ss)
+						throw error::invalid_number();
+					char ch;
+					ss >> ch;
+					if (ss)
+						throw error::invalid_number();
+					break;
+				} catch (std::invalid_argument&) {
+					throw error::invalid_number();
+				} catch (std::out_of_range&) {
+					throw error::invalid_number();
+				}
+			} catch (error::invalid_number& e) {
+				std::cout << e.what() << std::endl;
+			}
+		}
+		return result;
+	};
+}
 
-	compiler c;
-	machine vm;
-
+void interactive_console::run()
+{
 	std::string s;
-	basic_code_t code;
-	while (1) {
+	while (!_quit) {
 		while (std::isblank(std::cin.peek()))
 			std::cin.get();
 		std::getline(std::cin, s);
 		if (!std::cin)
 			break;
-		if (s == "RUN")
-			break;
 		if (s.empty())
 			continue;
 		std::size_t offset;
-		std::size_t lineno = std::stoul(s, &offset);
-		code[lineno] = s.substr(offset);
+		std::size_t lineno;
+		try {
+			lineno = std::stoul(s, &offset);
+		} catch (std::out_of_range&) {
+			std::cerr << "LINE NUMBER TOO LARGE" << std::endl;
+			continue;
+		} catch (std::invalid_argument&) {
+			special_command(s);
+			continue;
+		}
+		auto c = s.substr(offset);
+		command comm;
+		try {
+			comm = _comp.compile(c);
+		} catch (error::empty_command&) {
+			_prog_expire = true;
+			_code.erase(lineno);
+			_obj.erase(lineno);
+			continue;
+		} catch (error::syntax_error& e) {
+			std::cout << e.what() << std::endl;
+			continue;
+		}
+		_prog_expire = true;
+		_code[lineno] = std::move(c);
+		_obj[lineno] = std::move(comm);
 	}
-
-	object_code_t obj;
-	for (auto &line : code)
-		obj[line.first] = c.compile(line.second);
-	
-	linker ld(vm);
-	auto prog = ld.link(obj);
-	print_program(std::cerr, prog);
-	vm.run(prog);
 }
+
+void interactive_console::special_command(const std::string& s)
+{
+	std::istringstream ss(s);
+	std::string c;
+	ss >> c;
+	char ch;
+	try {
+		if (c == "ASM") {
+			if (ss >> ch)
+				throw error::syntax_error();
+			link();
+			print_program(std::cout, _prog);
+		} else if (c == "LIST") {
+			for (auto& line : _code) {
+				std::cout << line.first << line.second << std::endl;
+			}
+		} else if (c == "RUN") {
+			if (ss >> ch)
+				throw error::syntax_error();
+			link();
+			_vm.run(_prog);
+		} else if (c == "HELP") {
+			std::cout << "Sorry, not implemented." << std::endl;
+		} else if (c == "QUIT") {
+			if (ss >> ch)
+				throw error::syntax_error();
+			_quit = true;
+		} else if (c == "INPUT" || c == "PRINT" || c == "LET") {
+			object_code_t obj;
+			obj[0] = _comp.compile(s);
+			auto prog = _ld.link(obj);
+			_vm.run(prog);
+		} else if (c == "CLEAR") {
+			_prog.clear();
+			_prog_expire = true;
+			_code.clear();
+			_obj.clear();
+			_vm.clear();
+		} else {
+			throw error::syntax_error();
+		}
+	} catch (error::basic_error& e) {
+		std::cout << e.what() << std::endl;
+	}
+}
+
+void interactive_console::link()
+{
+	if (_prog_expire) {
+		_prog = _ld.link(_obj);
+		_prog_expire = false;
+	}
+}
+
+} // namespace BASIC
 
 int main()
 {
 	//test_linker();
 	//test_compiler();
-	run_interactive();
+	BASIC::interactive_console console;
+	console.run();
 	return 0;
 }
