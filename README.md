@@ -42,6 +42,12 @@ variables are stored in the given VM.
 
 Run the machine code in VM emulator.
 
+# About
+
 ## Author
 
 Lv Zheng <lv.zheng.2015@gmail.com>
+
+## License
+
+WTFPL, see `LICENSE` for details.
