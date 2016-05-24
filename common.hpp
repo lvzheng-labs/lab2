@@ -16,7 +16,7 @@
 #include <vector>
 
 #ifndef NOT_LAB2_JUDGE
-#define FUCK_LAB2
+#define LAB2_STYLE
 #else
 #define BASIC_ENABLE_EXTENSIONS
 #endif

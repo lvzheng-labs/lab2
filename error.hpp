@@ -23,10 +23,10 @@ struct end_of_file : public basic_error {
 struct divided_by_zero : public basic_error {
 	divided_by_zero():
 		basic_error{
-#ifdef FUCK_LAB2
+#ifdef LAB2_STYLE
 "DIVIDE BY ZERO"
 #else
-"DIVIDED BY ZERO"
+"DIVISION BY ZERO"
 #endif
 }
 	{ }
