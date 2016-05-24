@@ -2,18 +2,28 @@
 
 This is my implementation of SJTU 2016 Spring SE `lab2` assignment.
 
+## Features
+
+ - It runs very fast, faster than Python for simple programs such as computing
+   PI(10000)=1229. It runs even faster than Hong Kong journalists.
+ - Though dynamic language, it runs in an as static style as possible.
+ - Written in C++17, with no other dependencies.
+ - Tiny. Less than 2k lines of code.
+
 ## Build
 
-Just `make`. If you are not running lab2 judging program,
+Just `make`. If you are not running lab2 judging program and hope to run fast,
 ```sh
-CXXFLAGS=-DNOT_LAB2_JUDGE make
+CXXFLAGS="-DNOT_LAB2_JUDGE -g" make
 ```
+This allows ASM command to print assembly code and change some small UI words.
 
-## Dependencies
+Your C++ library should have a working `<experimental/optional.hpp>`.  If your
+compiler does not speak c++17, change CXXSTDFLAGS to -std=c++14, or edit
+`common.hpp` to use `boost::optional` instead.
 
-c++1z with `<experimental/optional.hpp>`.
-
-If your compiler does not speak c++1z, change CXXSTDFLAGS to -std=c++14.
+If your C++ library is new enough to have `<optional.hpp>`, edit `common.hpp`
+to use `std::optional`.
 
 ## How does it work
 
