@@ -14,6 +14,8 @@
 
 #ifndef NOT_LAB2_JUDGE
 #define FUCK_LAB2
+#else
+#define BASIC_ENABLE_EXTENSIONS
 #endif
 
 namespace BASIC {
@@ -23,7 +25,7 @@ using std_optional = std::experimental::optional<T>;
 
 auto& std_nullopt = std::experimental::nullopt;
 
-std::unordered_set<std::string> reserved_words = {
+const std::unordered_set<std::string> reserved_words = {
 	"END",
 	"GOTO",
 	"IF",
@@ -37,9 +39,7 @@ std::unordered_set<std::string> reserved_words = {
 namespace error {
 
 struct basic_error : public std::runtime_error {
-	basic_error(std::string&& s):
-		runtime_error{std::move(s)}
-	{ }
+	using std::runtime_error::runtime_error;
 };
 
 struct empty_command : public basic_error {
@@ -187,11 +187,15 @@ public:
 	command compile(const std::string& basic);
 
 private:
+	// command under parse
 	command comm;
+	// string stream for parsing
 	std::istringstream ss;
 
+	// Store a reserved word instead if it was consumed as a variable.
 	std_optional<std::string> stored_keyword;
 
+	// Throws on error.
 	void var_target();
 	void let_equal();
 	void shunting_yard_expr();
@@ -199,18 +203,22 @@ private:
 	void if_condition();
 	void if_then();
 
+	// Return nullopt on error.
 	std_optional<integer_t> consume_num();
 	std_optional<std::string> consume_var();
 	std_optional<expr_token> consume_value();
 	std_optional<expr_token> consume_token();
 
-	expr_token get_value();
+	// Get comparison operator. Throws on error.
 	expr_token get_comp();
 
-	bool pass_blank(); // return false if EOF is reached
+	// Ignore all blank characters. Return false if EOF is reached.
+	bool pass_blank(); 
 
+	// Return whether precedence of lhs <= that of rhs.
 	bool precedence_le(const expr_token& lhs, const expr_token& rhs);
 
+	// Check whether the command end without trailing extra stuffs.
 	void command_end();
 };
 
@@ -218,6 +226,7 @@ command compiler::compile(const std::string& basic)
 {
 	comm.clear();
 	stored_keyword = std_nullopt;
+	// Clear the string stream. A bit complicated.
 	ss.clear();
 	ss.seekg(0);
 	ss.str(basic);
@@ -225,19 +234,9 @@ command compiler::compile(const std::string& basic)
 	ss >> comm_str;
 	if (!ss)
 		throw error::empty_command();
-	if (comm_str == "REM") {
-		comm.type = command::BASIC_REM;
-	} else if (comm_str == "LET") {
-		comm.type = command::BASIC_LET;
-		var_target();
-		let_equal();
-		shunting_yard_expr();
-	} else if (comm_str == "PRINT") {
-		comm.type = command::BASIC_PRINT;
-		shunting_yard_expr();
-	} else if (comm_str == "INPUT") {
-		comm.type = command::BASIC_INPUT;
-		var_target();
+
+	if (comm_str == "END") {
+		comm.type = command::BASIC_END;
 	} else if (comm_str == "GOTO") {
 		comm.type = command::BASIC_GOTO;
 		lineno_target();
@@ -246,9 +245,21 @@ command compiler::compile(const std::string& basic)
 		if_condition();
 		if_then();
 		lineno_target();
-	} else if (comm_str == "END") {
-		comm.type = command::BASIC_END;
+	} else if (comm_str == "INPUT") {
+		comm.type = command::BASIC_INPUT;
+		var_target();
+	} else if (comm_str == "LET") {
+		comm.type = command::BASIC_LET;
+		var_target();
+		let_equal();
+		shunting_yard_expr();
+	} else if (comm_str == "PRINT") {
+		comm.type = command::BASIC_PRINT;
+		shunting_yard_expr();
+	} else if (comm_str == "REM") {
+		comm.type = command::BASIC_REM;
 	}
+
 	command_end();
 	return comm;
 }
@@ -298,8 +309,8 @@ void compiler::shunting_yard_expr()
 			if (prev != TOKEN_VALUE)
 				throw error::syntax_error();
 			prev = TOKEN_OPER;
-			while (!operstack.empty() &&
-					operstack.top().type == expr_token::OPERATOR &&
+			while (!operstack.empty() && operstack.top().type ==
+					expr_token::OPERATOR &&
 					precedence_le(token, operstack.top())) {
 				expr.push_back(std::move(operstack.top()));
 				operstack.pop();
@@ -368,7 +379,8 @@ std_optional<integer_t> compiler::consume_num()
 	std::string numstr;
 	while (1) {
 		int ch = ss.peek();
-		if (ch == std::istringstream::traits_type::eof() || !std::isdigit(ch))
+		if (ch == std::istringstream::traits_type::eof() ||
+				!std::isdigit(ch))
 			break;
 		numstr.push_back(ch);
 		ss.get();
@@ -403,7 +415,8 @@ std_optional<std::string> compiler::consume_var()
 	varname.push_back(ch);
 	while (1) {
 		ch = ss.peek();
-		if (ch == std::istringstream::traits_type::eof() || !std::isalnum(ch))
+		if (ch == std::istringstream::traits_type::eof() ||
+				!std::isalnum(ch))
 			break;
 		varname.push_back(ch);
 		ss.get();
@@ -462,14 +475,6 @@ std_optional<expr_token> compiler::consume_token()
 	return consume_value();
 }
 
-expr_token compiler::get_value()
-{
-	auto v = consume_value();
-	if (!v)
-		throw error::syntax_error();
-	return *v;
-}
-
 expr_token compiler::get_comp()
 {
 	char ch;
@@ -481,7 +486,7 @@ expr_token compiler::get_comp()
 	v.str.push_back(ch);
 	return v;
 }
-	
+
 bool compiler::pass_blank()
 {
 	int ch;
@@ -529,7 +534,8 @@ using basic_code_t = std::map<std::size_t, std::string>;
 using object_code_t = std::map<std::size_t, command>;
 using binary_code_t = std::vector<instruction>;
 
-struct machine {
+class machine {
+private:
 	using var_pool_t = std::vector<std_optional<integer_t>>;
 	using stack_t = std::stack<integer_t>;
 	var_map_t var_map;
@@ -540,12 +546,16 @@ struct machine {
 		integer_t STEP;
 		integer_t STOP;
 	} reg;
-	void run(const binary_code_t& prog);
 	void step(const instruction& ins);
-	void clear();
+protected:
 	virtual integer_t input_number() noexcept = 0;
 	virtual void print_number(integer_t) noexcept = 0;
+public:
+	void run(const binary_code_t& prog);
+	void clear();
 	virtual ~machine() = default;
+
+	friend class linker;
 };
 
 void machine::run(const binary_code_t& prog)
@@ -1037,37 +1047,42 @@ void interactive_console::special_command(const std::string& s)
 	ss >> c;
 	char ch;
 	try {
+#ifdef BASIC_ENABLE_EXTENSIONS
 		if (c == "ASM") {
 			if (ss >> ch)
 				throw error::syntax_error();
 			link();
 			print_program(std::cout, _prog);
-		} else if (c == "LIST") {
-			for (auto& line : _code) {
-				std::cout << line.first << line.second << std::endl;
-			}
-		} else if (c == "RUN") {
-			if (ss >> ch)
-				throw error::syntax_error();
-			link();
-			_vm.run(_prog);
-		} else if (c == "HELP") {
-			std::cout << "Sorry, not implemented." << std::endl;
-		} else if (c == "QUIT") {
-			if (ss >> ch)
-				throw error::syntax_error();
-			_quit = true;
-		} else if (c == "INPUT" || c == "PRINT" || c == "LET") {
-			object_code_t obj;
-			obj[0] = _comp.compile(s);
-			auto prog = _ld.link(obj);
-			_vm.run(prog);
-		} else if (c == "CLEAR") {
+		} else
+#endif // BASIC_ENABLE_EXTENSIONS
+		if (c == "CLEAR") {
 			_prog.clear();
 			_prog_expire = true;
 			_code.clear();
 			_obj.clear();
 			_vm.clear();
+		} else if (c == "HELP") {
+			std::cout << "Sorry, not implemented." << std::endl;
+		} else if (c == "LIST") {
+			for (auto& line : _code) {
+				std::cout << line.first
+					<< line.second << std::endl;
+			}
+		} else if (c == "QUIT") {
+			if (ss >> ch)
+				throw error::syntax_error();
+			_quit = true;
+
+		} else if (c == "RUN") {
+			if (ss >> ch)
+				throw error::syntax_error();
+			link();
+			_vm.run(_prog);
+		} else if (c == "INPUT" || c == "PRINT" || c == "LET") {
+			object_code_t obj;
+			obj[0] = _comp.compile(s);
+			auto prog = _ld.link(obj);
+			_vm.run(prog);
 		} else {
 			throw error::syntax_error();
 		}
