@@ -216,32 +216,4 @@ void linker::linkall_lineno()
 	}
 }
 
-void print_program(std::ostream& os, binary_code_t& prog)
-{
-	std::size_t l = 0;
-	for (auto& ins : prog) {
-		os << l++ << '\t';
-		os << asm_lang[ins.op_lo >> 4];
-		auto type = ins.op_lo & 0x0f;
-		if (type != 0) {
-			os << '\t';
-			switch (type) {
-			case 1: // IMMEDIATE
-				os << "%";
-				break;
-			case 2: // VARIABLE
-				os << "$";
-				break;
-			case 8: // LINENO
-				os << "#";
-				break;
-			default:
-				assert(0);
-			}
-			os << ins.operand[0];
-		}
-		os << std::endl;
-	}
-}
-
 } // namespace BASIC
