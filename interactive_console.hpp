@@ -14,8 +14,6 @@ public:
 	interactive_console();
 	void run();
 	void special_command(const std::string& s);
-	void link();
-	void run_program(const binary_code_t& prog);
 
 private:
 	basic_code_t _code;
@@ -26,6 +24,9 @@ private:
 	binary_code_t _prog;
 	bool _prog_expire;
 	bool _quit;
+
+	void link();
+	void run_program(const binary_code_t& prog);
 };
 
 } // namespace BASIC
