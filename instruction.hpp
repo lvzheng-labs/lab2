@@ -7,6 +7,7 @@ namespace BASIC {
 
 struct instruction {
 	enum op_type {
+		// NOP is unused
 		OP_NOP		= 0,
 		OP_INT,
 		OP_HALT,
@@ -24,7 +25,13 @@ struct instruction {
 	};
 	union {
 		struct {
+			// the lower 4 bits of op_lo is operand mode
+			//  0 - pure stack operation
+			//  1 - immediate
+			//  2 - variable slot
+			//  8 - operand is a line number
 			short_t op_lo;
+			// op_hi is unused.
 			short_t op_hi;
 		};
 		integer_t op;

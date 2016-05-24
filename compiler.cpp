@@ -14,9 +14,12 @@ command compiler::compile(const std::string& basic)
 	ss.str(basic);
 	std::string comm_str;
 	ss >> comm_str;
+
+	// Line is empty
 	if (!ss)
 		throw error::empty_command();
 
+	// The type of the command can be determined with the first keyword.
 	if (comm_str == "END") {
 		comm.type = command::BASIC_END;
 	} else if (comm_str == "GOTO") {
@@ -42,6 +45,7 @@ command compiler::compile(const std::string& basic)
 		comm.type = command::BASIC_REM;
 	}
 
+	// There should be no extra non-blank characters for certain commands.
 	command_end();
 	return comm;
 }
@@ -62,6 +66,10 @@ void compiler::let_equal()
 		throw error::syntax_error();
 }
 
+// Shunting yard algorithm with syntax checking.
+// When ignoring braces, the infix notation of the expression should be
+// VALUE OPERATOR VALUE OPERATOR VALUE ... OPERATOR VALUE
+// Otherwise, syntax error.
 void compiler::shunting_yard_expr()
 {
 	enum {
@@ -283,6 +291,7 @@ bool compiler::pass_blank()
 	}
 }
 
+// The code is simplified because there is only + - and * /
 bool compiler::precedence_le(const expr_token& lhs, const expr_token& rhs)
 {
 	auto is_addsub = [](const expr_token& t) {
@@ -296,6 +305,7 @@ bool compiler::precedence_le(const expr_token& lhs, const expr_token& rhs)
 
 void compiler::command_end()
 {
+	// EOF should already be reached for LET and PRINT
 	if (comm.type == command::BASIC_LET ||
 			comm.type == command::BASIC_PRINT) {
 		if (ss)
@@ -304,8 +314,10 @@ void compiler::command_end()
 	}
 	if (!ss)
 		throw error::syntax_error();
+	// For REM, just return.
 	if (comm.type == command::BASIC_REM)
 		return;
+	// Otherwise, EOF should be reached if trying to read one more char.
 	char ch;
 	ss >> ch;
 	if (ss)

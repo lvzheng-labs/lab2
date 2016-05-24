@@ -56,6 +56,7 @@ void interactive_console::run()
 		try {
 			lineno = std::stoul(s, &offset);
 		} catch (std::out_of_range&) {
+			// The instructions did not tell me what to do...
 			std::cout << "LINE NUMBER TOO LARGE" << std::endl;
 			continue;
 		} catch (std::invalid_argument&) {

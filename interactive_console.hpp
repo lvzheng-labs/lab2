@@ -22,7 +22,7 @@ private:
 	interactive_machine _vm;
 	linker _ld;
 	binary_code_t _prog;
-	bool _prog_expire;
+	bool _prog_expire; // program expires if any line is changed
 	bool _quit;
 
 	void link();

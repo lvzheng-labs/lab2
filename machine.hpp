@@ -17,11 +17,13 @@ private:
 	stack_t stack;
 	struct registers {
 		integer_t PC;
+		// unused currently
 		integer_t STEP;
 		integer_t STOP;
 	} reg;
 	void step(const instruction& ins);
 protected:
+	// functions for input and print. Child classes should implement these.
 	virtual integer_t input_number() noexcept = 0;
 	virtual void print_number(integer_t) noexcept = 0;
 public:
@@ -29,6 +31,7 @@ public:
 	void clear();
 	virtual ~machine() = default;
 
+	// linker modifies variable maps.
 	friend class linker;
 };
 

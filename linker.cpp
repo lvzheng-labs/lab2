@@ -41,6 +41,7 @@ binary_code_t linker::link(const object_code_t& obj)
 		}
 	}
 
+	// link line numbers
 	linkall_lineno();
 
 	return bin;
@@ -207,6 +208,8 @@ void linker::linkall_lineno()
 		auto it = lineno_map.find(entry.lineno);
 		auto& ins = bin[entry.id_bin];
 		if (it == lineno_map.end()) {
+			// if not found, replace the instruction with INT 0xff,
+			// which will cause the VM to throw line_number_error.
 			std::memset(&ins, 0, sizeof(ins));
 			ins.op_lo = (instruction::OP_INT << 4) | 1;
 			ins.operand[0] = 0xff;
