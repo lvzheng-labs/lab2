@@ -173,6 +173,8 @@ struct command {
 		BASIC_END,
 	} type;
 	expr_t expr;
+	expr_t expr2; // second expr of IF statement
+	std::string cmp; // comparation operator of IF statement
 	std::size_t target_lineno;
 	std::string target_var;
 	void clear()
@@ -188,6 +190,8 @@ public:
 private:
 	command comm;
 	std::istringstream ss;
+
+	std_optional<std::string> stored_keyword;
 
 	void var_target();
 	void let_equal();
@@ -214,6 +218,7 @@ private:
 command compiler::compile(const std::string& basic)
 {
 	comm.clear();
+	stored_keyword = std_nullopt;
 	ss.clear();
 	ss.seekg(0);
 	ss.str(basic);
@@ -341,18 +346,18 @@ void compiler::lineno_target()
 
 void compiler::if_condition()
 {
-	comm.expr.resize(3);
-	comm.expr[0] = get_value();
-	comm.expr[2] = get_comp();
-	comm.expr[1] = get_value();
+	shunting_yard_expr();
+	std::swap(comm.expr, comm.expr2);
+	comm.cmp = get_comp().str;
+	shunting_yard_expr();
+	std::swap(comm.expr, comm.expr2);
 }
 
 void compiler::if_then()
 {
-	std::string s;
-	ss >> s;
-	if (s != "THEN")
+	if (!stored_keyword || *stored_keyword != "THEN")
 		throw error::syntax_error();
+	stored_keyword = std_nullopt;
 }
 
 std_optional<integer_t> compiler::consume_num()
@@ -404,8 +409,10 @@ std_optional<std::string> compiler::consume_var()
 		varname.push_back(ch);
 		ss.get();
 	}
-	if (reserved_words.count(varname))
-		throw error::syntax_error();
+	if (reserved_words.count(varname)) {
+		stored_keyword = varname;
+		return std_nullopt;
+	}
 	return varname;
 }
 
@@ -658,7 +665,8 @@ private:
 	void program_print();
 	void input_variable(const std::string& var);
 	void program_goto(std::size_t lineno);
-	void if_condition(const expr_t& expr, std::size_t lineno);
+	void if_condition(const expr_t& exprl, const expr_t& exprr,
+		const std::string& cmp, std::size_t lineno);
 	void program_end();
 	void push_number(const expr_token& token);
 
@@ -695,7 +703,7 @@ binary_code_t linker::link(const object_code_t& obj)
 			program_goto(a.target_lineno);
 			break;
 		case command::BASIC_IF:
-			if_condition(a.expr, a.target_lineno);
+			if_condition(a.expr, a.expr2, a.cmp, a.target_lineno);
 			break;
 		case command::BASIC_END:
 			program_end();
@@ -770,9 +778,9 @@ void linker::program_goto(std::size_t lineno)
 	bin.push_back(std::move(ins));
 }
 
-void linker::if_condition(const expr_t& expr, std::size_t lineno)
+void linker::if_condition(const expr_t& exprl, const expr_t& exprr,
+		const std::string& cmp, std::size_t lineno)
 {
-	assert(expr.size() == 3);
 	auto do_sub = [this]() {
 		instruction ins;
 		std::memset(&ins, 0, sizeof(ins));
@@ -781,19 +789,19 @@ void linker::if_condition(const expr_t& expr, std::size_t lineno)
 	};
 	instruction ins;
 	std::memset(&ins, 0, sizeof(ins));
-	if (expr[2].str == "=") {
-		push_number(expr[0]);
-		push_number(expr[1]);
+	if (cmp == "=") {
+		expand_expr(exprl);
+		expand_expr(exprr);
 		do_sub();
 		ins.op_lo = (instruction::OP_JZ << 4) | 8;
-	} else if (expr[2].str == ">") {
-		push_number(expr[0]);
-		push_number(expr[1]);
+	} else if (cmp == ">") {
+		expand_expr(exprl);
+		expand_expr(exprr);
 		do_sub();
 		ins.op_lo = (instruction::OP_JP << 4) | 8;
-	} else if (expr[2].str == "<") {
-		push_number(expr[1]);
-		push_number(expr[0]);
+	} else if (cmp == "<") {
+		expand_expr(exprr);
+		expand_expr(exprl);
 		do_sub();
 		ins.op_lo = (instruction::OP_JP << 4) | 8;
 	} else {
@@ -1063,8 +1071,6 @@ void interactive_console::link()
 
 int main()
 {
-	//test_linker();
-	//test_compiler();
 	BASIC::interactive_console console;
 	console.run();
 	return 0;
