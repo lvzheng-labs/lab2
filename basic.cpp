@@ -3,7 +3,6 @@
 #include <cstdint>
 #include <cstring>
 #include <experimental/optional>
-#include <functional>
 #include <iostream>
 #include <map>
 #include <stack>
@@ -541,10 +540,12 @@ struct machine {
 		integer_t STEP;
 		integer_t STOP;
 	} reg;
-	std::function<integer_t ()> input_func;
 	void run(const binary_code_t& prog);
 	void step(const instruction& ins);
 	void clear();
+	virtual integer_t input_number() noexcept = 0;
+	virtual void print_number(integer_t) noexcept = 0;
+	virtual ~machine() = default;
 };
 
 void machine::run(const binary_code_t& prog)
@@ -572,11 +573,11 @@ void machine::step(const instruction& ins)
 		reg.STOP = 1;
 		break;
 	case instruction::OP_PRINT:
-		std::cout << stack.top() << std::endl;
+		print_number(stack.top());
 		stack.pop();
 		break;
 	case instruction::OP_INPUT:
-		stack.push(input_func());
+		stack.push(input_number());
 		break;
 	case instruction::OP_PUSH:
 		if (mode == 0x01) {
@@ -640,6 +641,49 @@ void machine::clear()
 	vars.clear();
 	stack = stack_t();
 	reg.PC = reg.STEP = reg.STOP = 0;
+}
+
+struct interactive_machine : machine {
+	virtual integer_t input_number() noexcept override;
+	virtual void print_number(integer_t) noexcept override;
+	virtual ~interactive_machine() override = default;
+};
+
+integer_t interactive_machine::input_number() noexcept
+{
+	integer_t result;
+	while (1) {
+		std::cout << " ? ";
+		std::string s;
+		std::getline(std::cin, s);
+		if (!std::cin)
+			throw error::end_of_file();
+		std::istringstream ss(s);
+		try {
+			try {
+				ss >> result;
+				if (!ss)
+					throw error::invalid_number();
+				char ch;
+				ss >> ch;
+				if (ss)
+					throw error::invalid_number();
+				break;
+			} catch (std::invalid_argument&) {
+				throw error::invalid_number();
+			} catch (std::out_of_range&) {
+				throw error::invalid_number();
+			}
+		} catch (error::invalid_number& e) {
+			std::cout << e.what() << std::endl;
+		}
+	}
+	return result;
+}
+
+void interactive_machine::print_number(integer_t num) noexcept
+{
+	std::cout << num << std::endl;
 }
 
 class linker {
@@ -928,7 +972,7 @@ private:
 	basic_code_t _code;
 	object_code_t _obj;
 	compiler _comp;
-	machine _vm;
+	interactive_machine _vm;
 	linker _ld;
 	binary_code_t _prog;
 	bool _prog_expire;
@@ -940,36 +984,9 @@ interactive_console::interactive_console():
 	_prog_expire(true),
 	_quit(false)
 {
-	_vm.input_func = []() -> integer_t {
-		integer_t result;
-		while (1) {
-			std::cout << " ? ";
-			std::string s;
-			std::getline(std::cin, s);
-			if (!std::cin)
-				throw error::end_of_file();
-			std::istringstream ss(s);
-			try {
-				try {
-					ss >> result;
-					if (!ss)
-						throw error::invalid_number();
-					char ch;
-					ss >> ch;
-					if (ss)
-						throw error::invalid_number();
-					break;
-				} catch (std::invalid_argument&) {
-					throw error::invalid_number();
-				} catch (std::out_of_range&) {
-					throw error::invalid_number();
-				}
-			} catch (error::invalid_number& e) {
-				std::cout << e.what() << std::endl;
-			}
-		}
-		return result;
-	};
+#if 0
+
+#endif
 }
 
 void interactive_console::run()
@@ -988,7 +1005,7 @@ void interactive_console::run()
 		try {
 			lineno = std::stoul(s, &offset);
 		} catch (std::out_of_range&) {
-			std::cerr << "LINE NUMBER TOO LARGE" << std::endl;
+			std::cout << "LINE NUMBER TOO LARGE" << std::endl;
 			continue;
 		} catch (std::invalid_argument&) {
 			special_command(s);
