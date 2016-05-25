@@ -2,7 +2,7 @@ RM = rm -f
 CXXSTDFLAGS ?= -std=c++1z
 CXXFLAGS := $(CXXFLAGS) -Wall -Wextra $(CXXSTDFLAGS)
 
-all: basic-lab2
+all: Basic basic-lab2
 
 SRCS = \
 	basic-lab2.cpp \
@@ -25,6 +25,9 @@ depend: .depend
 
 basic-lab2: $(OBJS)
 	$(CXX) $(LDFLAGS) -o basic-lab2 $(OBJS) $(LDLIBS)
+
+Basic: basic-lab2
+	ln -sf basic-lab2 Basic
 
 clean:
 	$(RM) $(OBJS)
