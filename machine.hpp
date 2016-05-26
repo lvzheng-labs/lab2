@@ -24,8 +24,8 @@ private:
 	void step(const instruction& ins);
 protected:
 	// functions for input and print. Child classes should implement these.
-	virtual integer_t input_number() noexcept = 0;
-	virtual void print_number(integer_t) noexcept = 0;
+	virtual integer_t input_number() = 0;
+	virtual void print_number(integer_t) = 0;
 public:
 	void run(const binary_code_t& prog);
 	void clear();

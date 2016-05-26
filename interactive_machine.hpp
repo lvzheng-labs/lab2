@@ -10,8 +10,8 @@ namespace BASIC {
 // input: read from stdin with hint " ? " until success
 // print: println
 struct interactive_machine : machine {
-	virtual integer_t input_number() noexcept override;
-	virtual void print_number(integer_t) noexcept override;
+	virtual integer_t input_number() override;
+	virtual void print_number(integer_t) override;
 	virtual ~interactive_machine() override = default;
 };
 

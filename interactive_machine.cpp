@@ -4,7 +4,7 @@
 
 namespace BASIC {
 
-integer_t interactive_machine::input_number() noexcept
+integer_t interactive_machine::input_number()
 {
 	integer_t result;
 	while (1) {
@@ -36,7 +36,7 @@ integer_t interactive_machine::input_number() noexcept
 	return result;
 }
 
-void interactive_machine::print_number(integer_t num) noexcept
+void interactive_machine::print_number(integer_t num)
 {
 	std::cout << num << std::endl;
 }
